@@ -610,21 +610,44 @@ func (s Syrup) getTupleTypes(t *types.Tuple) []string {
 }
 
 func (s Syrup) getNamedTypeName(t *types.Named) string {
-	name := t.String()
-
-	i := strings.LastIndex(t.String(), "/")
-	if i > -1 {
-		name = name[i+1:]
+	name := &strings.Builder{}
+	if t.Obj().Pkg() != nil && t.Obj().Pkg().Path() != s.PkgPath {
+		name.WriteString(t.Obj().Pkg().Name())
+		name.WriteString(".")
 	}
+	name.WriteString(t.Obj().Name())
 
-	if t.Obj() != nil && t.Obj().Pkg() != nil {
-		if t.Obj().Pkg().Path() == s.PkgPath {
-			i := strings.Index(name, ".")
-			return name[i+1:]
+	args := t.TypeArgs()
+	if args != nil && args.Len() > 0 {
+		name.WriteString("[")
+		for i := 0; i < args.Len(); i++ {
+			if i > 0 {
+				name.WriteString(", ")
+			}
+			s.tArgsType(name, args.At(i))
 		}
+		name.WriteString("]")
 	}
 
-	return name
+	return name.String()
+}
+
+func (s Syrup) tArgsType(name *strings.Builder, t types.Type) {
+	switch tp := t.(type) {
+	case *types.Basic:
+		name.WriteString(tp.Name())
+	case *types.Pointer:
+		name.WriteString("*")
+		s.tArgsType(name, tp.Elem())
+	case *types.Named:
+		if tp.Obj().Pkg() != nil && tp.Obj().Pkg().Path() != s.PkgPath {
+			name.WriteString(tp.Obj().Pkg().Name())
+			name.WriteString(".")
+		}
+		name.WriteString(tp.Obj().Name())
+	default:
+		panic(fmt.Sprintf("type not implemented: %T", tp))
+	}
 }
 
 func (s Syrup) getChanTypeName(t *types.Chan) string {
